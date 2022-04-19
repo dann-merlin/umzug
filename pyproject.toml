@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "umzug"
+version = "0.1.0"
+description = ""
+authors = ["Merlin Danner <merlin.danner@posteo.net>"]
+license = "GPLv3"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+xdg = "^5.1.1"
+
+[tool.poetry.dev-dependencies]
+pynvim = "^0.4.3"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

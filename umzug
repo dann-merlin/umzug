@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import sys
+from typing import Dict
+
+from xdg import xdg_data_home
+
+UMZUG_DIR = xdg_data_home() / 'umzug'
+UMZUG_DIR.mkdir(exist_ok=True, parents=True)
+UMZUG_JSON_PATH = UMZUG_DIR / 'umzug.json'
+
+CURRENT_UMZUG_JSON = None
+
+def error(err_str: str):
+    print(str(err_str), file=sys.stderr)
+    sys.exit(1)
+
+def umzug_json() -> Dict:
+    global CURRENT_UMZUG_JSON
+    if not CURRENT_UMZUG_JSON:
+        try:
+            with open(UMZUG_JSON_PATH, 'r') as umzug_json_file:
+                CURRENT_UMZUG_JSON = json.load(umzug_json_file)
+        except FileNotFoundError:
+            CURRENT_UMZUG_JSON = json.loads('{"boxes":{}}')
+    return CURRENT_UMZUG_JSON
+
+def write():
+    j = umzug_json()
+    with open(UMZUG_JSON_PATH, 'w') as umzug_json_file:
+        json.dump(j, umzug_json_file)
+
+def get_next_box_num():
+    bs = umzug_json()['boxes']
+    i = 1
+    while True:
+        try:
+            bs[str(i)]
+        except KeyError:
+            return str(i)
+        i += 1
+
+def get_last_used_box() -> str:
+    try:
+        return umzug_json()['last_used_box']
+    except KeyError:
+        try:
+            return list(umzug_json()['boxes'])[-1]
+        except KeyError or IndexError:
+            error('There are no boxes yet. You can create one with the command "add-box".')
+
+def set_last_used_box(box: str):
+    umzug_json()['last_used_box'] = box
+
+def add_box(args):
+    box = args.box
+    if not box:
+        box = get_next_box_num()
+    umzug_json()['boxes'][box] = []
+    set_last_used_box(box)
+    print(f'Added box {box}.')
+
+def insert(args):
+    box = args.box
+    if not box:
+        box = get_last_used_box()
+    umzug_json()['boxes'][box].append(args.item)
+    set_last_used_box(box)
+    print(f'Inserted item {args.item} into box {box}.')
+
+def undo(args):
+    print('TODO')
+
+def list_boxes(args):
+    all_boxes = umzug_json()['boxes']
+    if len(args.box) == 0:
+        boxes = all_boxes
+    else:
+        boxes = {}
+        for box in args.box:
+            try:
+                boxes[box] = all_boxes[box]
+            except KeyError:
+                print()
+                error(f"No box {box} in known boxes list.")
+    last = len(boxes) - 1
+    for i, (box, items) in enumerate(boxes.items()):
+        print(f'Box {box}:')
+        for item in items:
+            print(f"\t{item}")
+        if i != last:
+            print('')
+
+def main(args):
+    parser = argparse.ArgumentParser(description='Handle move boxes.')
+    subparsers = parser.add_subparsers(required=True)
+
+    add_box_parser = subparsers.add_parser('add-box', help='Add a new box.')
+    add_box_parser.add_argument('box', type=str, default='', nargs='?', help='Name of the added box (by default numbers counting 1 up are used).')
+    add_box_parser.set_defaults(func=add_box)
+
+    insert_parser = subparsers.add_parser('insert', help='Insert something into a box.')
+    insert_parser.add_argument('item', type=str, help='The name of the item to be inserted.')
+    insert_parser.add_argument('box', type=str, nargs='?', default='', help='The name of the box that should be inserted into (by default it is the last one that was inserted into or the last one created).')
+    insert_parser.set_defaults(func=insert)
+
+    list_parser = subparsers.add_parser('list', help='List all or specific boxes with their contents.')
+    list_parser.add_argument('box', type=str, nargs='*', default='', help='The boxes that should be listed.')
+    list_parser.set_defaults(func=list_boxes)
+
+    undo_parser = subparsers.add_parser('undo', help='Undo the last command.')
+    undo_parser.set_defaults(func=undo)
+
+    _args = parser.parse_args(args)
+    _args.func(_args)
+    write()
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
